@@ -67,14 +67,82 @@ def alexnet1st5(x, weights, biases):
     return maxpool5
 
 
-def saliency_ext(alex_out, weights, biases):
+def saliency_ext(x_i, weights, biases):
+    # x_i is the whole image after postprocessing
+    alex_out=alexnet1st5(x_i, weights, biases);
+    saliency_out=conv2d(alex_out, weights['wc6'], biases['bc6'],1,'SAME')
+    
+    return saliency_out
+    
+
+def gazeFollow(x_i, x_h, x_p, weights, biases):
+    
+    saliency_out=saliency_ext(x_i, weights, biases)
+    gaze_out=gaze_ext(x_h, x_p, weights, biases)
+    
+    salGazeProd=tf.multiply(saliency_out, gaze_out)
+    
+    #Now the 5 different shifted grided output need to be decided
+    salGazeProdfc = tf.reshape(salGazeProd, [-1, weights['wSG1'].get_shape().as_list()[0]])
+    
+    # 1st shifted grid output
+    fcSG1 = tf.add(tf.matmul(salGazeProdfc, weights['wSG1']), biases['bSG1'])
+    
+    # 2nd shifted grid output
+    fcSG2 = tf.add(tf.matmul(salGazeProdfc, weights['wSG2']), biases['bSG2'])
+    
+    # 3rd shifted grid output
+    fcSG3 = tf.add(tf.matmul(salGazeProdfc, weights['wSG3']), biases['bSG3'])
+    
+    # 4th shifted grid output
+    fcSG4 = tf.add(tf.matmul(salGazeProdfc, weights['wSG4']), biases['bSG4'])
+    
+    # 5th shifted grid output
+    fcSG5 = tf.add(tf.matmul(salGazeProdfc, weights['wSG5']), biases['bSG5'])
+    
+    fcSG=[fcSG1, fcSG2, fcSG3, fcSG4, fcSG5]
+    
+    return fcSG
+
+#def heatmap(fcSG, alpha):
+    # fcSG is the input containing the output of the fullyconnected layers 
+    
+    
+    
+    
+    
+    
+    
     
 
 def gaze_ext(x_h, x_p, weights, biases):
-    # x_h is the head image
-    # x_p is the position of the head
+    # x_h is the head image after post processing 
+    # x_p is the eye postion grid after postprocessing and flattening
     alex_out=alexnet1st5(x_h, weights, biases);
-    fc    
+    # Here g stands for gaze
+    fc6g = tf.reshape(alex_out, [-1, weights['wf6g'].get_shape().as_list()[0]])
+    fc6g = tf.add(tf.matmul(fc6g, weights['wf6g']), biases['bf6g'])
+    fc6g = tf.nn.relu(fc6g)
+    
+    fc7in=tf.concat([fc6g,x_p],0)
+    fc7g = tf.add(tf.matmul(fc7in, weights['wf7g']), biases['bf7g'])
+    fc7g = tf.nn.relu(fc7g)
+    
+    fc8g = tf.add(tf.matmul(fc7g, weights['wf8g']), biases['bf8g'])
+    fc8g = tf.nn.relu(fc8g)       
+    
+    fc9g = tf.add(tf.matmul(fc8g, weights['wf9g']), biases['bf9g'])
+    fc9g = tf.nn.sigmoid(fc9g)
+    
+    #Then we reshape this into 13 times 13
+    fc10g = tf.reshape(fc9g, [1,1,13,13,])
+    
+    #Doing a convolution
+    gaze_out=tf.nn.conv2d(fc10g, weights['wcg'], strides=[1, 1, 1, 1],'SAME')
+    gaze_out = tf.nn.bias_add(gaze_out, biases['wcg'])
+    
+    return gaze_out
+    
     
     
     

@@ -12,6 +12,7 @@ function [x_predict,y_predict,hm_results,net] = predict_gaze(img,e,net)
    filelist = cell(1,3);   
    filelist(:,1) = {img};
 
+   % This is just extracting the face patch using the normlized co-ordinates of the eyes.
    alpha = 0.3;
    w_x = floor(alpha*size(img,2));
    w_y = floor(alpha*size(img,1));
@@ -59,6 +60,8 @@ function [x_predict,y_predict,hm_results,net] = predict_gaze(img,e,net)
     im_face(delta_b_y:delta_t_y,delta_b_x:delta_t_x,:) = img(bottom_y:top_y,bottom_x:top_x,:);
     filelist(:,2) = {im_face};
 
+    # Now this is how the eye is to be located.
+
     f = zeros(1,1,169,'single');
     z = zeros(13,13,'single');
     x = floor(e(1)*13)+1;
@@ -70,8 +73,9 @@ function [x_predict,y_predict,hm_results,net] = predict_gaze(img,e,net)
     use_gpu = 1;
     device_id = 2;
 
+    # We have 3 inputs and as result we have 3 flags for the 3 inputs
     transform_data =[1 1 0];
-
+    
     
     if(~exist('net','var'))
         if use_gpu
@@ -96,7 +100,8 @@ function [x_predict,y_predict,hm_results,net] = predict_gaze(img,e,net)
         b = cell(1, 1);
         img_size = [input_dim(3) input_dim(4) input_dim(2)];
         image_mean = image_mean_cell{j};
-             
+        
+        # Here some transformation of images is done for the whole image and face      
         if(transform_data(j))
                 tmp = load(image_mean);
                 image_mean = tmp.image_mean;
@@ -121,20 +126,22 @@ function [x_predict,y_predict,hm_results,net] = predict_gaze(img,e,net)
                 b{1} = permute(img, [2 1 3]);
 
         else
-                b{1} = filelist_i;
+                b{1} = filelist_i; #Here transformation is not done  
         end
          b = cat(4, b{:}); 
         ims{j} = b;   
     end
     
     f_val = net.forward(ims);
-
+    
+    # use 5 shifted grids
     fc_0_0 = f_val{1}';
     fc_1_0= f_val{2}';
     fc_m1_0 = f_val{3}';
     fc_0_1 = f_val{4}';
     fc_0_m1 = f_val{5}';
 
+      #hm is the heat map 
       hm = zeros(15,15);
       count_hm = zeros(15,15);
       f_0_0 = reshape(fc_0_0(1,:),[5 5]); f_0_0 = exp(alpha*f_0_0)/sum(exp(alpha*f_0_0(:)));
@@ -144,6 +151,7 @@ function [x_predict,y_predict,hm_results,net] = predict_gaze(img,e,net)
       f_0_1 = reshape(fc_0_1(1,:),[5 5]); f_0_1 = exp(alpha*f_0_1)/sum(exp(alpha*f_0_1(:)));
       
       f_cell = {f_0_0,f_1_0,f_m1_0,f_0_m1,f_0_1};
+      # This v_x and v_y are arrays containing no. describing how much shift they have in x and y directions respectively.
       v_x = [0 1 -1 0 0];
       v_y = [0 0 0 -1 1];
       for k=1:5
@@ -174,7 +182,7 @@ function [x_predict,y_predict,hm_results,net] = predict_gaze(img,e,net)
         end
       end
       
-      hm_base = hm./count_hm;
+      hm_base = hm./count_hm; # count_hm is for averaging out
       hm_results = imresize(hm_base', [size(img,1) size(img,2)],'bicubic');
       [maxval,idx]=max(hm_results(:));
       [row,col]=ind2sub(size(hm_results), idx);

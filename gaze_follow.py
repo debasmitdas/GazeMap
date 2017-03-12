@@ -32,9 +32,9 @@ keep_prob = tf.placeholder(tf.float32) #dropout (keep probability)
 
 
 # Create some wrappers for simplicity
-def conv2d(x, W, b, strides,padding):
+def conv2d(x, W, b, stride,paddings):
     # Conv2D wrapper, with bias and relu activation
-    x = tf.nn.conv2d(x, W, strides=[1, strides, strides, 1],padding)
+    x = tf.nn.conv2d(x, W, [1, stride, stride, 1],paddings)
     x = tf.nn.bias_add(x, b)
     return tf.nn.relu(x)
 
@@ -100,9 +100,11 @@ def gazeFollow(x_i, x_h, x_p, weights, biases):
     # 5th shifted grid output
     fcSG5 = tf.add(tf.matmul(salGazeProdfc, weights['wSG5']), biases['bSG5'])
     
-    fcSG=[fcSG1, fcSG2, fcSG3, fcSG4, fcSG5]
+    #fcSG=[fcSG1, fcSG2, fcSG3, fcSG4, fcSG5] # You could do this
+    # or you could concatenate
+    f=tf.concat(0,(fcSG1, fcSG2, fcSG3, fcSG4, fcSG5))
     
-    return fcSG
+    return f
 
 #def heatmap(fcSG, alpha):
     # fcSG is the input containing the output of the fullyconnected layers 
@@ -142,10 +144,6 @@ def gaze_ext(x_h, x_p, weights, biases):
     gaze_out = tf.nn.bias_add(gaze_out, biases['wcg'])
     
     return gaze_out
-    
-    
-    
-    
     
     
     
@@ -202,10 +200,15 @@ biases = {
 }
 
 # Construct model
-pred = conv_net(x, weights, biases, keep_prob)
+#pred = conv_net(x, weights, biases, keep_prob)
+pred = gazeFollow(x_i, x_h, x_p, weights, biases)
+
 
 # Define loss and optimizer
-cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=pred, labels=y))
+#cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=pred, labels=y))
+
+
+cost= tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=pred, labels=y)
 optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
 
 # Evaluate model
